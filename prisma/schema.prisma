@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String?
+  role          String    @default("USER") // ADMIN, USER
+  uploadedFiles ProjectVersion[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  code        String?
+  year        Int?
+  description String?
+  client      String?
+  equipment   Equipment[]
+  remoteAccess RemoteAccess[]
+  versions    ProjectVersion[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Equipment {
+  id        String   @id @default(cuid())
+  project   Project  @relation(fields: [projectId], references: [id])
+  projectId String
+  name      String
+  ipAddress String?
+  username  String?
+  password  String?
+  type      String?  // PLC, HMI, SCADA, WORKSTATION, SERVER, OTHERS
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RemoteAccess {
+  id           String   @id @default(cuid())
+  project      Project  @relation(fields: [projectId], references: [id])
+  projectId    String
+  name         String
+  type         String   // ANYDESK, TEAMVIEWER, VPN, RDP
+  remoteId     String?  // Anydesk ID, etc.
+  username     String?
+  password     String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ProjectVersion {
+  id            String   @id @default(cuid())
+  project       Project  @relation(fields: [projectId], references: [id])
+  projectId     String
+  versionNumber String
+  fileLink      String
+  changelog     String?
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+  uploadedById  String
+  createdAt     DateTime @default(now())
+}

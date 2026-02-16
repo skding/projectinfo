@@ -1,0 +1,37 @@
+services:
+  app:
+    container_name: project-record-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "4000:3000" # Maps host port 4000 to container port 3000
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db-prod:5432/project_record_prod
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_URL=${AUTH_URL} # e.g. http://your-droplet-ip:4000
+    depends_on:
+      - db-prod
+    networks:
+      - project_net
+
+  db-prod:
+    container_name: project-record-db-prod
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: project_record_prod
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - project_net
+
+networks:
+  project_net:
+    driver: bridge
+
+volumes:
+  postgres_data_prod:
