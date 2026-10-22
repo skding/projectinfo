@@ -6,11 +6,11 @@ services:
       dockerfile: Dockerfile
     restart: always
     ports:
-      - "4000:3000" # Maps host port 4000 to container port 3000
+      - "3001:3000" # Maps host port 3001 to container port 3000
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db-prod:5432/project_record_prod
       - AUTH_SECRET=${AUTH_SECRET}
-      - AUTH_URL=${AUTH_URL} # e.g. http://your-droplet-ip:4000
+      - AUTH_URL=${AUTH_URL} # e.g. http://your-instance-ip:3001
     depends_on:
       - db-prod
     networks:

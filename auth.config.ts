@@ -13,7 +13,10 @@ export const authConfig = {
             if (isApi) return true; // Let API routes handle their own auth or be public for file download (if decided)
 
             if (isOnLoginPage) {
-                if (isLoggedIn) return Response.redirect(new URL('/', nextUrl));
+                if (isLoggedIn) {
+                    // Use a relative path for redirect to avoid IP/Port mismatch issues in cloud environments
+                    return Response.redirect(new URL('/', nextUrl.origin));
+                }
                 return true;
             }
 

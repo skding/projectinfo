@@ -1,104 +1,143 @@
-# Deployment Guide - Oracle Cloud
+# Oracle Cloud PM2 Deployment & Update Guide (Port 3001)
 
-This guide explains how to deploy the **Project Record App** to your Oracle Cloud Compute Instance on **Port 4000**.
+This guide covers how to update your existing app running with **PM2** on Oracle Cloud using the GitHub repository:  
+**`https://github.com/skding/projectinfo`**
 
-## Prerequisites
-1.  **Oracle Cloud Instance** (Ubuntu or Oracle Linux) with:
-    -   Docker installed.
-    -   Docker Compose installed.
-2.  **SSH Access** and `sudo` privileges.
+---
 
-## Step 1: Open Port 4000 (Critical)
-Oracle Cloud has a strict firewall. You must open port 4000 in **TWO** places:
+## ⚡ Quick Update Guide (For Running PM2 Server)
 
-### 1. Oracle Cloud Console (VCN Security List)
-1.  Go to **Networking** -> **Virtual Cloud Networks**.
-2.  Click on your VCN -> **Security Lists** -> **Default Security List**.
-3.  Click **Add Ingress Rules**.
-    -   **Source CIDR**: `0.0.0.0/0`
-    -   **IP Protocol**: TCP
-    -   **Destination Port Range**: `4000`
-4.  Click **Add Ingress Rules**.
+When you have pushed your latest changes to GitHub, run these steps on your Oracle Cloud instance to update the live app:
 
-### 2. Instance Firewall (iptables)
-Run these commands on your instance to open the port:
-
-**For Ubuntu (using UFW):**
+### Step 1: SSH into your Oracle Cloud Instance
 ```bash
-sudo ufw allow 4000/tcp
-sudo ufw reload
+ssh -i /path/to/your-key.key ubuntu@<YOUR_SERVER_IP>
 ```
+*(Replace `ubuntu` with `opc` if using Oracle Linux).*
 
-**For Oracle Linux / Ubuntu (using iptables):**
+---
+
+### Step 2: Navigate to your Project Directory
 ```bash
-# This inserts a rule to accept traffic on port 4000
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 4000 -j ACCEPT
-
-# Save the rules so they persist after reboot
-sudo netfilter-persistent save
+cd ~/projectinfo
 ```
+*(Or the directory where your repository is cloned, e.g. `/var/www/projectinfo` or `/opt/projectinfo`).*
 
-## Step 2: Prepare the Server
-Create a directory for the app:
+---
+
+### Step 3: Check Current PM2 Status
 ```bash
-mkdir -p /opt/project-record
-cd /opt/project-record
+pm2 status
 ```
+> Note the **App name** or **id** (e.g., `projectinfo` or `0`).
 
-## Step 3: Transfer Files
-You need to copy the project files to the server.
+---
 
-**Option A: Using Git (Recommended)**
-1.  Push your code to GitHub/GitLab.
-2.  Clone on the server:
-    ```bash
-    git clone https://github.com/your-username/your-repo.git .
-    ```
-
-**Option B: Using SCP**
-From your local terminal:
+### Step 4: Pull the Latest Code from GitHub
 ```bash
-scp -r * ubuntu@your_instance_ip:/opt/project-record/
+git pull origin main
 ```
+*(If you have uncommitted changes on the server, you can run `git stash` before pulling).*
 
-## Step 4: Configure Environment
-Create a `.env` file on the server:
+---
+
+### Step 5: Install Dependencies & Sync Database Schema
 ```bash
-nano .env
-```
-Paste (Update `AUTH_SECRET` and `AUTH_URL`):
-```env
-# Database URL (internal docker network)
-DATABASE_URL="postgresql://postgres:postgres@db-prod:5432/project_record_prod"
-
-# Auth Secret (Generate: openssl rand -base64 32)
-AUTH_SECRET="CHANGE_THIS_TO_A_LONG_RANDOM_STRING"
-
-# Auth URL (Your Public IP + Port)
-AUTH_URL="http://your_instance_public_ip:4000"
+npm install
+npx prisma generate
+npx prisma db push
 ```
 
-## Step 5: Build and Run
-Start the application:
+---
+
+### Step 6: Build the Production Application
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+npm run build
 ```
 
-## Step 6: Database Setup
-Initialize the database:
+---
 
-1.  **Push Schema**:
-    ```bash
-    docker exec -it project-record-app npx prisma db push
-    ```
+### Step 7: Restart the App in PM2
+Restart by app name (or id):
+```bash
+pm2 restart projectinfo
+```
+*(Or simply `pm2 restart all` if it is your only app).*
 
-2.  **Seed User**:
-    ```bash
-    docker exec -it project-record-app node prisma/seed.js
-    ```
+If you want PM2 to use the included `ecosystem.config.js`:
+```bash
+pm2 start ecosystem.config.js
+```
 
-## Step 7: Verify
-Open `http://your_instance_public_ip:4000`.
-Login: `admin@example.com` / `password123`.
+---
 
-**(Important)**: Verify that you can access the page. If it loads but hangs, check the Oracle Cloud Security List again. If it says "Connection Refused", check that the container is running or try simpler firewall rules.
+### Step 8: Verify Live Status & Logs
+```bash
+pm2 status
+pm2 logs --lines 50
+```
+
+Open your browser:
+```
+http://<YOUR_SERVER_IP>:3001
+```
+
+---
+
+## 🚀 Initial / Fresh PM2 Setup (For Reference)
+
+If setting up on a brand new instance or fresh directory:
+
+### 1. Ensure Port 3001 is open in firewall
+- **Oracle Cloud Console**: In your VCN Default Security List, add Ingress Rule for TCP port `3001` from `0.0.0.0/0`.
+- **Instance OS Firewall**:
+  ```bash
+  sudo ufw allow 3001/tcp
+  sudo ufw reload
+  ```
+  *(Or on Oracle Linux: `sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 3001 -j ACCEPT && sudo netfilter-persistent save`)*
+
+### 2. Clone the repository
+```bash
+git clone https://github.com/skding/projectinfo.git
+cd projectinfo
+```
+
+### 3. Install packages & build
+```bash
+npm install
+npx prisma generate
+npx prisma db push
+node prisma/seed.js
+npm run build
+```
+
+### 4. Start with PM2 on Port 3001
+Using the provided `ecosystem.config.js`:
+```bash
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
+```
+
+Or directly via npm:
+```bash
+PORT=3001 pm2 start npm --name "projectinfo" -- run start
+pm2 save
+pm2 startup
+```
+
+---
+
+## 🛠️ Helpful PM2 Commands
+
+| Action | Command |
+|---|---|
+| View running apps & CPU/Memory | `pm2 status` |
+| View real-time logs | `pm2 logs` |
+| View logs for this app specifically | `pm2 logs projectinfo` |
+| Restart app | `pm2 restart projectinfo` |
+| Reload with zero-downtime | `pm2 reload projectinfo` |
+| Stop app | `pm2 stop projectinfo` |
+| Save current processes to revive on boot | `pm2 save` |
+| Real-time terminal dashboard | `pm2 monit` |
